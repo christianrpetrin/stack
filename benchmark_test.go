@@ -31,7 +31,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/ef-ds/stack"
+	"github.com/christianrpetrin/stack"
 )
 
 // testData contains the number of items to add to the stacks in each test.
@@ -59,7 +59,9 @@ var (
 	refillCount = 10
 )
 
-func BenchmarkMicroservice(b *testing.B) {
+// InterfaceStack tests-------------------------------------
+
+func BenchmarkMicroserviceInterfaceStack(b *testing.B) {
 	for _, test := range tests {
 		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
@@ -67,14 +69,14 @@ func BenchmarkMicroservice(b *testing.B) {
 
 				// Simulate stable traffic
 				for i := 0; i < test.count; i++ {
-					s.Push(nil)
+					s.Push(getTestValue())
 					s.Pop()
 				}
 
 				// Simulate slowly increasing traffic
 				for i := 0; i < test.count; i++ {
-					s.Push(nil)
-					s.Push(nil)
+					s.Push(getTestValue())
+					s.Push(getTestValue())
 					s.Pop()
 				}
 
@@ -84,17 +86,17 @@ func BenchmarkMicroservice(b *testing.B) {
 					if s.Len() > 0 {
 						s.Pop()
 					}
-					s.Push(nil)
+					s.Push(getTestValue())
 				}
 
 				// Simulate quick traffic spike (DDOS attack, etc)
 				for i := 0; i < test.count; i++ {
-					s.Push(nil)
+					s.Push(getTestValue())
 				}
 
 				// Simulate stable traffic while at high traffic
 				for i := 0; i < test.count; i++ {
-					s.Push(nil)
+					s.Push(getTestValue())
 					s.Pop()
 				}
 
@@ -105,7 +107,7 @@ func BenchmarkMicroservice(b *testing.B) {
 
 				// Simulate stable traffic (now that is Front to normal)
 				for i := 0; i < test.count; i++ {
-					s.Push(nil)
+					s.Push(getTestValue())
 					s.Pop()
 				}
 			}
@@ -113,13 +115,13 @@ func BenchmarkMicroservice(b *testing.B) {
 	}
 }
 
-func BenchmarkFill(b *testing.B) {
+func BenchmarkFillInterfaceStack(b *testing.B) {
 	for _, test := range tests {
 		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				s := stack.New()
 				for i := 0; i < test.count; i++ {
-					s.Push(nil)
+					s.Push(getTestValue())
 				}
 				for s.Len() > 0 {
 					tmp, tmp2 = s.Pop()
@@ -129,14 +131,14 @@ func BenchmarkFill(b *testing.B) {
 	}
 }
 
-func BenchmarkRefill(b *testing.B) {
+func BenchmarkRefillInterfaceStack(b *testing.B) {
 	for _, test := range tests {
 		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
 			q := stack.New()
 			for n := 0; n < b.N; n++ {
 				for n := 0; n < refillCount; n++ {
 					for i := 0; i < test.count; i++ {
-						q.Push(nil)
+						q.Push(getTestValue())
 					}
 					for q.Len() > 0 {
 						tmp, tmp2 = q.Pop()
@@ -147,10 +149,10 @@ func BenchmarkRefill(b *testing.B) {
 	}
 }
 
-func BenchmarkRefillFull(b *testing.B) {
+func BenchmarkRefillFullInterfaceStack(b *testing.B) {
 	s := stack.New()
 	for i := 0; i < fillCount; i++ {
-		s.Push(nil)
+		s.Push(getTestValue())
 	}
 
 	for _, test := range tests {
@@ -158,7 +160,7 @@ func BenchmarkRefillFull(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				for k := 0; k < refillCount; k++ {
 					for i := 0; i < test.count; i++ {
-						s.Push(nil)
+						s.Push(getTestValue())
 					}
 					for i := 0; i < test.count; i++ {
 						tmp, tmp2 = s.Pop()
@@ -173,17 +175,17 @@ func BenchmarkRefillFull(b *testing.B) {
 	}
 }
 
-func BenchmarkStable(b *testing.B) {
+func BenchmarkStableInterfaceStack(b *testing.B) {
 	s := stack.New()
 	for i := 0; i < fillCount; i++ {
-		s.Push(nil)
+		s.Push(getTestValue())
 	}
 
 	for _, test := range tests {
 		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				for i := 0; i < test.count; i++ {
-					s.Push(nil)
+					s.Push(getTestValue())
 					tmp, tmp2 = s.Pop()
 				}
 			}
@@ -195,14 +197,14 @@ func BenchmarkStable(b *testing.B) {
 	}
 }
 
-func BenchmarkSlowIncrease(b *testing.B) {
+func BenchmarkSlowIncreaseInterfaceStack(b *testing.B) {
 	for _, test := range tests {
 		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				s := stack.New()
 				for i := 0; i < test.count; i++ {
-					s.Push(nil)
-					s.Push(nil)
+					s.Push(getTestValue())
+					s.Push(getTestValue())
 					tmp, tmp2 = s.Pop()
 				}
 				for s.Len() > 0 {
@@ -213,12 +215,12 @@ func BenchmarkSlowIncrease(b *testing.B) {
 	}
 }
 
-func BenchmarkSlowDecrease(b *testing.B) {
+func BenchmarkSlowDecreaseInterfaceStack(b *testing.B) {
 	s := stack.New()
 	for _, test := range tests {
 		items := test.count / 2
 		for i := 0; i <= items; i++ {
-			s.Push(nil)
+			s.Push(getTestValue())
 		}
 	}
 
@@ -226,7 +228,7 @@ func BenchmarkSlowDecrease(b *testing.B) {
 		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				for i := 0; i < test.count; i++ {
-					s.Push(nil)
+					s.Push(getTestValue())
 					tmp, tmp2 = s.Pop()
 					if s.Len() > 0 {
 						tmp, tmp2 = s.Pop()
@@ -238,5 +240,196 @@ func BenchmarkSlowDecrease(b *testing.B) {
 
 	for s.Len() > 0 {
 		tmp, tmp2 = s.Pop()
+	}
+}
+
+// TestValueStack tests-------------------------------------
+
+func BenchmarkMicroserviceTestValueStack(b *testing.B) {
+	for _, test := range tests {
+		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				s := stack.NewTestValueStack()
+
+				// Simulate stable traffic
+				for i := 0; i < test.count; i++ {
+					s.Push(getTestValue())
+					s.Pop()
+				}
+
+				// Simulate slowly increasing traffic
+				for i := 0; i < test.count; i++ {
+					s.Push(getTestValue())
+					s.Push(getTestValue())
+					s.Pop()
+				}
+
+				// Simulate slowly decreasing traffic, bringing traffic Front to normal
+				for i := 0; i < test.count; i++ {
+					s.Pop()
+					if s.Len() > 0 {
+						s.Pop()
+					}
+					s.Push(getTestValue())
+				}
+
+				// Simulate quick traffic spike (DDOS attack, etc)
+				for i := 0; i < test.count; i++ {
+					s.Push(getTestValue())
+				}
+
+				// Simulate stable traffic while at high traffic
+				for i := 0; i < test.count; i++ {
+					s.Push(getTestValue())
+					s.Pop()
+				}
+
+				// Simulate going Front to normal (DDOS attack fended off)
+				for i := 0; i < test.count; i++ {
+					s.Pop()
+				}
+
+				// Simulate stable traffic (now that is Front to normal)
+				for i := 0; i < test.count; i++ {
+					s.Push(getTestValue())
+					s.Pop()
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkFillTestValueStack(b *testing.B) {
+	for _, test := range tests {
+		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				s := stack.NewTestValueStack()
+				for i := 0; i < test.count; i++ {
+					s.Push(getTestValue())
+				}
+				for s.Len() > 0 {
+					tmp, tmp2 = s.Pop()
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkRefillTestValueStack(b *testing.B) {
+	for _, test := range tests {
+		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
+			q := stack.NewTestValueStack()
+			for n := 0; n < b.N; n++ {
+				for n := 0; n < refillCount; n++ {
+					for i := 0; i < test.count; i++ {
+						q.Push(getTestValue())
+					}
+					for q.Len() > 0 {
+						tmp, tmp2 = q.Pop()
+					}
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkRefillFullTestValueStack(b *testing.B) {
+	s := stack.NewTestValueStack()
+	for i := 0; i < fillCount; i++ {
+		s.Push(getTestValue())
+	}
+
+	for _, test := range tests {
+		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				for k := 0; k < refillCount; k++ {
+					for i := 0; i < test.count; i++ {
+						s.Push(getTestValue())
+					}
+					for i := 0; i < test.count; i++ {
+						tmp, tmp2 = s.Pop()
+					}
+				}
+			}
+		})
+	}
+
+	for s.Len() > 0 {
+		tmp, tmp2 = s.Pop()
+	}
+}
+
+func BenchmarkStableTestValueStack(b *testing.B) {
+	s := stack.NewTestValueStack()
+	for i := 0; i < fillCount; i++ {
+		s.Push(getTestValue())
+	}
+
+	for _, test := range tests {
+		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				for i := 0; i < test.count; i++ {
+					s.Push(getTestValue())
+					tmp, tmp2 = s.Pop()
+				}
+			}
+		})
+	}
+
+	for s.Len() > 0 {
+		tmp, tmp2 = s.Pop()
+	}
+}
+
+func BenchmarkSlowIncreaseTestValueStack(b *testing.B) {
+	for _, test := range tests {
+		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				s := stack.NewTestValueStack()
+				for i := 0; i < test.count; i++ {
+					s.Push(getTestValue())
+					s.Push(getTestValue())
+					tmp, tmp2 = s.Pop()
+				}
+				for s.Len() > 0 {
+					tmp, tmp2 = s.Pop()
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkSlowDecreaseTestValueStack(b *testing.B) {
+	s := stack.NewTestValueStack()
+	for _, test := range tests {
+		items := test.count / 2
+		for i := 0; i <= items; i++ {
+			s.Push(getTestValue())
+		}
+	}
+
+	for _, test := range tests {
+		b.Run(strconv.Itoa(test.count), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				for i := 0; i < test.count; i++ {
+					s.Push(getTestValue())
+					tmp, tmp2 = s.Pop()
+					if s.Len() > 0 {
+						tmp, tmp2 = s.Pop()
+					}
+				}
+			}
+		})
+	}
+
+	for s.Len() > 0 {
+		tmp, tmp2 = s.Pop()
+	}
+}
+
+func getTestValue() *stack.TestValue {
+	return &stack.TestValue{
+		F1: 1,
+		F2: 2,
 	}
 }

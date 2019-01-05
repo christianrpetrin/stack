@@ -1,187 +1,253 @@
 # stack [![Build Status](https://travis-ci.com/ef-ds/stack.svg?branch=master)](https://travis-ci.com/ef-ds/stack) [![codecov](https://codecov.io/gh/ef-ds/stack/branch/master/graph/badge.svg)](https://codecov.io/gh/ef-ds/stack) [![Go Report Card](https://goreportcard.com/badge/github.com/ef-ds/stack)](https://goreportcard.com/report/github.com/ef-ds/stack)  [![GoDoc](https://godoc.org/github.com/ef-ds/stack?status.svg)](https://godoc.org/github.com/ef-ds/stack)
 
-Package stack implements a very fast and efficient general purpose Last-In-First-Out (LIFO) stack data structure that is specifically optimized to perform when used by Microservices and serverless services running in production environments. Internally, stack stores the elements in a dynamic growing semi-circular doubly linked list of arrays.
-
-
-## Install
-From a configured [Go environment](https://golang.org/doc/install#testing):
-```sh
-go get -u github.com/ef-ds/stack
-```
-
-If you are using dep:
-```sh
-dep ensure -add github.com/ef-ds/stack@1.0.0
-```
-
-We recommend to target only released versions for production use.
-
-
-## How to Use
-```go
-package main
-
-import (
-	"fmt"
-
-	"github.com/ef-ds/stack"
-)
-
-func main() {
-	var s stack.Stack
-
-	for i := 1; i <= 5; i++ {
-		s.Push(i)
-	}
-	for s.Len() > 0 {
-		v, _ := s.Pop()
-		fmt.Println(v)
-	}
-}
-```
-
-Output:
-```
-5
-4
-3
-2
-1
-```
-
-Also refer to the [integration](integration_test.go) and [API](api_test.go) tests.
-
-
-
-## Tests
-Besides having 100% code coverage, stack has an extensive set of [unit](unit_test.go), [integration](integration_test.go) and [API](api_test.go) tests covering all happy, sad and edge cases.
-
-When considering all tests, stack has over 4x more lines of testing code when compared to the actual, functional code.
-
-Performance and efficiency are major concerns, so stack has an extensive set of benchmark tests as well comparing the stack performance with a variety of high quality open source stack implementations.
-
-See the [benchmark tests](https://github.com/ef-ds/stack-bench-tests/blob/master/BENCHMARK_TESTS.md) for details.
-
-
-## Performance
-Stack has constant time (O(1)) on all its operations (Push/Pop/Back/Len). It's not amortized constant because stack never copies more than 256 (maxInternalSliceSize/sliceGrowthFactor) items and when it expands or grow, it never does so by more than 1024 (maxInternalSliceSize) items in a single operation.
-
-Stack offers either the best or very competitive performance across all test sets, suites and ranges.
-
-As a general purpose LIFO stack, stack offers, by far, the most balanced and consistent performance of all tested data structures.
-
-See [performance](https://github.com/ef-ds/stack-bench-tests/blob/master/PERFORMANCE.md) for details.
-
-
-## Design
-The Efficient Data Structures (ef-ds) stack employs a new, modern stack design: a semi-circular shaped, linked slices design.
-
-That means the [LIFO stack](https://en.wikipedia.org/wiki/Stack_(abstract_data_type)) is a [doubly-linked list](https://en.wikipedia.org/wiki/Doubly_linked_list) where each node value is a fixed size [slice](https://tour.golang.org/moretypes/7). It is semi-circular in shape because the first node in the linked list points to itself, but the last one points to nil.
-
-![ns/op](testdata/stack.jpg?raw=true "stack Design")
-
-
-### Design Considerations
-Stack uses linked slices as its underlying data structure. The reason for the choice comes from two main observations of pure slice based stacks:
-
-1. When the stack needs to expand to accommodate new values, [a new, larger slice needs to be allocated](https://en.wikipedia.org/wiki/Dynamic_array#Geometric_expansion_and_amortized_cost) and used
-2. Allocating and managing large slices is expensive, especially in an overloaded system with little available physical memory
-
-To help clarify the scenario, below is what happens when a slice based stack that already holds, say 1bi items, needs to expand to accommodate a new item.
-
-Slice based implementation.
-
-- Allocate a new, twice the size of the previous allocated one, say 2 billion positions slice
-- Copy over all 1 billion items from the previous slice into the new one
-- Add the new value into the first unused position in the new slice, position 1000000001
-
-The same scenario for stack plays out like below.
-
-- Allocate a new 1024 size slice
-- Set the previous and next pointers
-- Add the value into the first position of the new slice, position 0
-
-The decision to use linked slices was also the result of the observation that slices goes to great length to provide predictive, indexed positions. A hash table, for instance, absolutely need this property, but not a stack. So stack completely gives up this property and focus on what really matters: add and retrieve from the edges (front/back). No copying around and repositioning of elements is needed for that. So when a slice goes to great length to provide that functionality, the whole work of allocating new arrays, copying data around is all wasted work. None of that is necessary. And this work costs dearly for large data sets as observed in the tests.
-
-
-## Supported Data Types
-Similarly to Go's standard library list, [list](https://github.com/golang/go/tree/master/src/container/list),
-[ring](https://github.com/golang/go/tree/master/src/container/ring) and [heap](https://github.com/golang/go/blob/master/src/container/heap/heap.go) packages, stack supports "interface{}" as its data type. This means it can be used with any Go data types, including int, float, string and any user defined structs and pointers to interfaces.
-
-The data types pushed into the stack can even be mixed, meaning, it's possible to push ints, floats and struct instances into the same stack.
-
-
-## Safe for Concurrent Use
-Stack is not safe for concurrent use. However, it's very easy to build a safe for concurrent use version of the stack. Impl7 design document includes an example of how to make impl7 safe for concurrent use using a mutex. stack can be made safe for concurret use using the same technique. Impl7 design document can be found [here](https://github.com/golang/proposal/blob/master/design/27935-unbounded-queue-package.md).
-
-
-## Range Support
-Just like the current container data structures such as [list](https://github.com/golang/go/tree/master/src/container/list),
-[ring](https://github.com/golang/go/tree/master/src/container/ring) and [heap](https://github.com/golang/go/blob/master/src/container/heap/heap.go), stack doesn't support the range keyword for navigation.
-
-However, the API offers two ways to iterate over the stack items. Either use "PopFront"/"PopBack" to retrieve the first current element and the second bool parameter to check for an empty queue.
-
-```go
-for v, ok := s.Pop(); ok; v, ok = s.Pop() {
-    // Do something with v
-}
-```
-
-Or use "Len" and "Pop" to check for an empty stack and retrieve the first current element.
-```go
-for s.Len() > 0 {
-    v, _ := s.Pop()
-    // Do something with v
-}
-```
-
-
+Package stack updates the [ef-ds stack](https://github.com/ef-ds/stack) to operate on [*TestValue](testvaluestack.go) struct instead of the default "interface{}" type.
 
 ## Why
-We feel like this world needs improving. Our goal is to change the world, for the better, for everyone.
 
-As software engineers at ef-ds, we feel like the best way we can contribute to a better world is to build amazing systems,
-systems that solve real world problems, with unheard performance and efficiency.
+This is a test to check the performance impact of a data structure that operates on "interface{}" vs the final, concrete type.
 
-We believe in challenging the status-quo. We believe in thinking differently. We believe in progress.
+Below commands can be used to check the performance difference of the default interface vs the new TestValue stack.
 
-What if we could build queues, stacks, lists, arrays, hash tables, etc that are much faster than the current ones we have? What if we had a dynamic array data structure that offers near constant time deletion (anywhere in the array)? Or that could handle 1 million items data sets using only 1/3 of the memory when compared to all known current implementations? And still runs 2x as fast?
+Run below from the stack main folder.
+```
+benchstat testdata/BenchmarkMicroserviceInterfaceStack.txt testdata/BenchmarkMicroserviceTestValueStack.txt
+benchstat testdata/BenchmarkFillInterfaceStack.txt testdata/BenchmarkFillTestValueStack.txt
+benchstat testdata/BenchmarkRefillInterfaceStack.txt testdata/BenchmarkRefillTestValueStack.txt
+benchstat testdata/BenchmarkRefillFullInterfaceStack.txt testdata/BenchmarkRefillFullTestValueStack.txt
+benchstat testdata/BenchmarkSlowIncreaseInterfaceStack.txt testdata/BenchmarkSlowIncreaseTestValueStack.txt
+benchstat testdata/BenchmarkSlowDecreaseInterfaceStack.txt testdata/BenchmarkSlowDecreaseTestValueStack.txt
+benchstat testdata/BenchmarkStableInterfaceStack.txt testdata/BenchmarkStableTestValueStack.txt
+```
 
-One sofware engineer can't change the world him/herself, but a whole bunch of us can! Please join us improving this world. All the work done here is made 100% transparent and is 100% free. No strings attached. We only require one thing in return: please consider benefiting from it; and if you do so, please let others know about it.
+## Results
 
+```
+benchstat testdata/BenchmarkMicroserviceInterfaceStack.txt testdata/BenchmarkMicroserviceTestValueStack.txt
+name        old time/op    new time/op    delta
+/0-4          4.35ns ± 0%    4.36ns ± 1%     ~     (p=0.728 n=10+10)
+/1-4           282ns ± 1%     274ns ± 1%   -2.88%  (p=0.000 n=9+10)
+/10-4         2.03µs ± 0%    1.94µs ± 0%   -4.30%  (p=0.000 n=9+10)
+/100-4        18.5µs ± 0%    17.7µs ± 1%   -4.75%  (p=0.000 n=9+10)
+/1000-4        175µs ± 1%     168µs ± 1%   -3.91%  (p=0.000 n=9+10)
+/10000-4      1.79ms ± 1%    1.71ms ± 1%   -4.60%  (p=0.000 n=9+9)
+/100000-4     19.9ms ± 1%    18.7ms ± 1%   -6.11%  (p=0.000 n=9+10)
+/1000000-4     207ms ± 3%     206ms ± 3%     ~     (p=0.529 n=10+10)
 
-## Competition
-We're extremely interested in improving stack. Please let us know your suggestions for possible improvements and if you know of other high performance stacks not tested here, let us know and we're very glad to benchmark them.
+name        old alloc/op   new alloc/op   delta
+/0-4           0.00B          0.00B          ~     (all equal)
+/1-4            224B ± 0%      192B ± 0%  -14.29%  (p=0.000 n=10+10)
+/10-4         1.49kB ± 0%    1.33kB ± 0%  -10.75%  (p=0.000 n=10+10)
+/100-4        16.7kB ± 0%    14.0kB ± 0%  -16.30%  (p=0.000 n=10+10)
+/1000-4        134kB ± 0%     123kB ± 0%   -8.15%  (p=0.000 n=10+10)
+/10000-4      1.29MB ± 0%    1.21MB ± 0%   -6.56%  (p=0.000 n=10+10)
+/100000-4     12.8MB ± 0%    12.0MB ± 0%   -6.29%  (p=0.000 n=10+10)
+/1000000-4     128MB ± 0%     120MB ± 0%   -6.25%  (p=0.000 n=10+10)
 
+name        old allocs/op  new allocs/op  delta
+/0-4            0.00           0.00          ~     (all equal)
+/1-4            9.00 ± 0%      9.00 ± 0%     ~     (all equal)
+/10-4           73.0 ± 0%      73.0 ± 0%     ~     (all equal)
+/100-4           705 ± 0%       705 ± 0%     ~     (all equal)
+/1000-4        7.01k ± 0%     7.01k ± 0%     ~     (all equal)
+/10000-4       70.0k ± 0%     70.0k ± 0%     ~     (all equal)
+/100000-4       700k ± 0%      700k ± 0%     ~     (all equal)
+/1000000-4     7.00M ± 0%     7.00M ± 0%     ~     (all equal)
+```
 
-## Releases
-We're committed to a CI/CD lifecycle releasing frequent, but only stable, production ready versions with all proper tests in place.
+```
+benchstat testdata/BenchmarkFillInterfaceStack.txt testdata/BenchmarkFillTestValueStack.txt
+name        old time/op    new time/op    delta
+/0-4          1.17ns ± 3%    1.45ns ± 1%  +24.19%  (p=0.000 n=10+10)
+/1-4           127ns ± 1%     119ns ± 1%   -6.23%  (p=0.000 n=9+10)
+/10-4          463ns ± 1%     421ns ± 1%   -9.04%  (p=0.000 n=10+9)
+/100-4        3.86µs ± 1%    3.31µs ± 0%  -14.28%  (p=0.000 n=10+10)
+/1000-4       29.0µs ± 1%    26.8µs ± 1%   -7.73%  (p=0.000 n=10+10)
+/10000-4       279µs ± 1%     263µs ± 1%   -5.75%  (p=0.000 n=9+9)
+/100000-4     3.05ms ± 2%    3.46ms ± 8%  +13.41%  (p=0.000 n=10+10)
+/1000000-4    74.3ms ±42%    85.7ms ±53%     ~     (p=0.353 n=10+10)
 
-We strive as much as possible to keep backwards compatibility with previous versions, so breaking changes are a no-go.
+name        old alloc/op   new alloc/op   delta
+/0-4           0.00B          0.00B          ~     (all equal)
+/1-4            128B ± 0%       96B ± 0%  -25.00%  (p=0.000 n=10+10)
+/10-4           528B ± 0%      368B ± 0%  -30.30%  (p=0.000 n=10+10)
+/100-4        7.09kB ± 0%    4.37kB ± 0%  -38.37%  (p=0.000 n=10+10)
+/1000-4       37.9kB ± 0%    27.0kB ± 0%  -28.81%  (p=0.000 n=10+10)
+/10000-4       330kB ± 0%     245kB ± 0%  -25.67%  (p=0.000 n=10+10)
+/100000-4     3.22MB ± 0%    2.41MB ± 0%  -25.05%  (p=0.000 n=10+10)
+/1000000-4    32.1MB ± 0%    24.1MB ± 0%  -24.97%  (p=0.002 n=8+10)
 
-For a list of changes in each released version, see [CHANGELOG.md](CHANGELOG.md).
+name        old allocs/op  new allocs/op  delta
+/0-4            0.00           0.00          ~     (all equal)
+/1-4            3.00 ± 0%      3.00 ± 0%     ~     (all equal)
+/10-4           13.0 ± 0%      13.0 ± 0%     ~     (all equal)
+/100-4           105 ± 0%       105 ± 0%     ~     (all equal)
+/1000-4        1.01k ± 0%     1.01k ± 0%     ~     (all equal)
+/10000-4       10.0k ± 0%     10.0k ± 0%     ~     (all equal)
+/100000-4       100k ± 0%      100k ± 0%     ~     (all equal)
+/1000000-4     1.00M ± 0%     1.00M ± 0%     ~     (all equal)
+```
 
+```
+benchstat testdata/BenchmarkRefillInterfaceStack.txt testdata/BenchmarkRefillTestValueStack.txt
+name        old time/op    new time/op    delta
+/0-4          16.3ns ± 1%    13.0ns ± 0%  -19.97%  (p=0.000 n=10+9)
+/1-4           275ns ± 1%     262ns ± 1%   -4.62%  (p=0.000 n=10+9)
+/10-4         2.60µs ± 1%    2.55µs ± 2%   -2.04%  (p=0.000 n=10+10)
+/100-4        25.2µs ± 2%    24.8µs ± 0%   -1.84%  (p=0.000 n=10+9)
+/1000-4        249µs ± 1%     246µs ± 2%     ~     (p=0.052 n=10+10)
+/10000-4      2.59ms ± 4%    3.08ms ± 7%  +19.27%  (p=0.000 n=10+10)
+/100000-4     40.3ms ± 5%    27.7ms ± 8%  -31.28%  (p=0.000 n=9+10)
+/1000000-4     485ms ±29%     387ms ±10%  -20.16%  (p=0.003 n=9+10)
 
-## Supported Go Versions
-See [supported_go_versions.md](https://github.com/ef-ds/docs/blob/master/supported_go_versions.md).
+name        old alloc/op   new alloc/op   delta
+/0-4           0.00B          0.00B          ~     (all equal)
+/1-4            160B ± 0%      160B ± 0%     ~     (all equal)
+/10-4         1.60kB ± 0%    1.60kB ± 0%     ~     (all equal)
+/100-4        16.0kB ± 0%    16.0kB ± 0%     ~     (all equal)
+/1000-4        160kB ± 0%     160kB ± 0%   -0.00%  (p=0.000 n=10+10)
+/10000-4      1.60MB ± 0%    1.60MB ± 0%   -0.01%  (p=0.000 n=10+10)
+/100000-4     16.0MB ± 0%    16.0MB ± 0%   -0.15%  (p=0.000 n=10+8)
+/1000000-4     166MB ± 2%     163MB ± 0%   -1.84%  (p=0.000 n=10+9)
 
+name        old allocs/op  new allocs/op  delta
+/0-4            0.00           0.00          ~     (all equal)
+/1-4            10.0 ± 0%      10.0 ± 0%     ~     (all equal)
+/10-4            100 ± 0%       100 ± 0%     ~     (all equal)
+/100-4         1.00k ± 0%     1.00k ± 0%     ~     (all equal)
+/1000-4        10.0k ± 0%     10.0k ± 0%     ~     (all equal)
+/10000-4        100k ± 0%      100k ± 0%     ~     (all equal)
+/100000-4      1.00M ± 0%     1.00M ± 0%     ~     (p=0.087 n=10+10)
+/1000000-4     10.0M ± 0%     10.0M ± 0%     ~     (p=0.786 n=10+9)
+```
 
-## License
-MIT, see [LICENSE](LICENSE).
+```
+benchstat testdata/BenchmarkRefillFullInterfaceStack.txt testdata/BenchmarkRefillFullTestValueStack.txt
+name        old time/op    new time/op    delta
+/0-4          13.4ns ± 1%    13.1ns ± 1%   -2.54%  (p=0.000 n=10+10)
+/1-4           293ns ± 3%     306ns ± 7%   +4.33%  (p=0.001 n=10+10)
+/10-4         2.84µs ± 5%    3.08µs ± 5%   +8.43%  (p=0.000 n=10+10)
+/100-4        27.0µs ± 1%    29.3µs ± 6%   +8.43%  (p=0.000 n=9+10)
+/1000-4        272µs ± 3%     300µs ± 9%  +10.42%  (p=0.000 n=10+10)
+/10000-4      2.70ms ± 1%    2.76ms ± 4%   +2.17%  (p=0.011 n=10+10)
+/100000-4     37.8ms ± 4%    42.1ms ± 4%  +11.56%  (p=0.000 n=10+10)
+/1000000-4     632ms ± 1%     385ms ±13%  -39.05%  (p=0.000 n=10+10)
 
-"Use, abuse, have fun and contribute back!"
+name        old alloc/op   new alloc/op   delta
+/0-4           0.00B          0.00B          ~     (all equal)
+/1-4            160B ± 0%      160B ± 0%     ~     (all equal)
+/10-4         1.60kB ± 0%    1.60kB ± 0%     ~     (all equal)
+/100-4        16.0kB ± 0%    16.0kB ± 0%     ~     (all equal)
+/1000-4        160kB ± 0%     160kB ± 0%     ~     (all equal)
+/10000-4      1.60MB ± 0%    1.60MB ± 0%     ~     (all equal)
+/100000-4     16.0MB ± 0%    16.0MB ± 0%     ~     (all equal)
+/1000000-4     160MB ± 0%     160MB ± 0%     ~     (all equal)
 
+name        old allocs/op  new allocs/op  delta
+/0-4            0.00           0.00          ~     (all equal)
+/1-4            10.0 ± 0%      10.0 ± 0%     ~     (all equal)
+/10-4            100 ± 0%       100 ± 0%     ~     (all equal)
+/100-4         1.00k ± 0%     1.00k ± 0%     ~     (all equal)
+/1000-4        10.0k ± 0%     10.0k ± 0%     ~     (all equal)
+/10000-4        100k ± 0%      100k ± 0%     ~     (all equal)
+/100000-4      1.00M ± 0%     1.00M ± 0%     ~     (all equal)
+/1000000-4     10.0M ± 0%     10.0M ± 0%     ~     (all equal)
+```
 
-## Contributions
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+```
+benchstat testdata/BenchmarkSlowIncreaseInterfaceStack.txt testdata/BenchmarkSlowIncreaseTestValueStack.txt
+name        old time/op    new time/op    delta
+/0-4          1.16ns ± 0%    1.16ns ± 2%     ~     (p=0.776 n=8+9)
+/1-4           151ns ± 1%     144ns ± 0%   -4.76%  (p=0.000 n=9+10)
+/10-4          725ns ± 2%     682ns ± 1%   -5.96%  (p=0.000 n=9+10)
+/100-4        6.48µs ± 4%    5.70µs ± 1%  -12.11%  (p=0.000 n=10+10)
+/1000-4       56.3µs ± 4%    50.4µs ± 1%  -10.56%  (p=0.000 n=10+10)
+/10000-4       554µs ± 8%     508µs ± 1%   -8.41%  (p=0.000 n=10+10)
+/100000-4     7.93ms ±10%    4.94ms ± 1%  -37.66%  (p=0.000 n=10+10)
+/1000000-4    76.7ms ±12%    73.1ms ±17%     ~     (p=0.387 n=9+9)
 
+name        old alloc/op   new alloc/op   delta
+/0-4           0.00B          0.00B          ~     (all equal)
+/1-4            144B ± 0%      112B ± 0%  -22.22%  (p=0.000 n=10+10)
+/10-4           688B ± 0%      528B ± 0%  -23.26%  (p=0.000 n=10+10)
+/100-4        8.69kB ± 0%    5.97kB ± 0%  -31.31%  (p=0.000 n=10+10)
+/1000-4       53.9kB ± 0%    43.0kB ± 0%  -20.26%  (p=0.000 n=10+10)
+/10000-4       490kB ± 0%     405kB ± 0%  -17.28%  (p=0.000 n=10+10)
+/100000-4     4.82MB ± 0%    4.01MB ± 0%  -16.73%  (p=0.000 n=10+9)
+/1000000-4    48.1MB ± 0%    40.1MB ± 0%  -16.66%  (p=0.000 n=10+10)
 
-## Roadmap
-- Build tool to help find out the combination of firstSliceSize, sliceGrowthFactor and maxInternalSliceSize that will yield the best performance
-- Find the fastest open source stacks and add them the bench tests
-- Improve stack performance and/or efficiency by improving its design and/or implementation
-- Build a high performance safe for concurrent use version of stack
+name        old allocs/op  new allocs/op  delta
+/0-4            0.00           0.00          ~     (all equal)
+/1-4            4.00 ± 0%      4.00 ± 0%     ~     (all equal)
+/10-4           23.0 ± 0%      23.0 ± 0%     ~     (all equal)
+/100-4           205 ± 0%       205 ± 0%     ~     (all equal)
+/1000-4        2.01k ± 0%     2.01k ± 0%     ~     (all equal)
+/10000-4       20.0k ± 0%     20.0k ± 0%     ~     (all equal)
+/100000-4       200k ± 0%      200k ± 0%     ~     (all equal)
+/1000000-4     2.00M ± 0%     2.00M ± 0%     ~     (all equal)
+```
 
+```
+benchstat testdata/BenchmarkSlowDecreaseInterfaceStack.txt testdata/BenchmarkSlowDecreaseTestValueStack.txt
+name        old time/op    new time/op    delta
+/0-4          0.89ns ± 6%    0.58ns ± 0%  -35.05%  (p=0.000 n=10+8)
+/1-4          30.5ns ± 7%    28.2ns ± 1%   -7.48%  (p=0.000 n=9+10)
+/10-4          299ns ± 2%     287ns ± 1%   -3.95%  (p=0.000 n=10+10)
+/100-4        2.90µs ± 1%    2.82µs ± 2%   -2.70%  (p=0.000 n=9+9)
+/1000-4       28.3µs ± 1%    27.9µs ± 1%   -1.54%  (p=0.000 n=9+10)
+/10000-4       283µs ± 1%     279µs ± 0%   -1.47%  (p=0.000 n=10+8)
+/100000-4     2.82ms ± 1%    2.78ms ± 1%   -1.25%  (p=0.000 n=10+10)
+/1000000-4    28.1ms ± 1%    27.8ms ± 0%   -1.19%  (p=0.000 n=10+8)
 
-## Contact
-Suggestions, bugs, new queues to benchmark, issues with the stack, please let us know at ef-ds@outlook.com.
+name        old alloc/op   new alloc/op   delta
+/0-4           0.00B          0.00B          ~     (all equal)
+/1-4           16.0B ± 0%     16.0B ± 0%     ~     (all equal)
+/10-4           160B ± 0%      160B ± 0%     ~     (all equal)
+/100-4        1.60kB ± 0%    1.60kB ± 0%     ~     (all equal)
+/1000-4       16.0kB ± 0%    16.0kB ± 0%     ~     (all equal)
+/10000-4       160kB ± 0%     160kB ± 0%     ~     (all equal)
+/100000-4     1.60MB ± 0%    1.60MB ± 0%     ~     (all equal)
+/1000000-4    16.0MB ± 0%    16.0MB ± 0%     ~     (all equal)
+
+name        old allocs/op  new allocs/op  delta
+/0-4            0.00           0.00          ~     (all equal)
+/1-4            1.00 ± 0%      1.00 ± 0%     ~     (all equal)
+/10-4           10.0 ± 0%      10.0 ± 0%     ~     (all equal)
+/100-4           100 ± 0%       100 ± 0%     ~     (all equal)
+/1000-4        1.00k ± 0%     1.00k ± 0%     ~     (all equal)
+/10000-4       10.0k ± 0%     10.0k ± 0%     ~     (all equal)
+/100000-4       100k ± 0%      100k ± 0%     ~     (all equal)
+/1000000-4     1.00M ± 0%     1.00M ± 0%     ~     (all equal)
+```
+
+```
+benchstat testdata/BenchmarkStableInterfaceStack.txt testdata/BenchmarkStableTestValueStack.txt
+name        old time/op    new time/op    delta
+/0-4          0.58ns ± 0%    0.87ns ± 1%  +50.69%  (p=0.000 n=9+10)
+/1-4          28.0ns ± 3%    29.2ns ± 8%   +4.43%  (p=0.014 n=10+10)
+/10-4          280ns ± 3%     294ns ± 6%   +4.96%  (p=0.000 n=9+9)
+/100-4        2.75µs ± 2%    2.88µs ± 4%   +4.62%  (p=0.000 n=10+9)
+/1000-4       27.4µs ± 4%    30.1µs ± 4%   +9.84%  (p=0.000 n=10+10)
+/10000-4       275µs ± 3%     286µs ± 6%   +3.77%  (p=0.009 n=10+10)
+/100000-4     2.73ms ± 4%    2.80ms ± 5%     ~     (p=0.105 n=10+10)
+/1000000-4    27.4ms ± 3%    28.4ms ± 7%     ~     (p=0.052 n=10+10)
+
+name        old alloc/op   new alloc/op   delta
+/0-4           0.00B          0.00B          ~     (all equal)
+/1-4           16.0B ± 0%     16.0B ± 0%     ~     (all equal)
+/10-4           160B ± 0%      160B ± 0%     ~     (all equal)
+/100-4        1.60kB ± 0%    1.60kB ± 0%     ~     (all equal)
+/1000-4       16.0kB ± 0%    16.0kB ± 0%     ~     (all equal)
+/10000-4       160kB ± 0%     160kB ± 0%     ~     (all equal)
+/100000-4     1.60MB ± 0%    1.60MB ± 0%     ~     (all equal)
+/1000000-4    16.0MB ± 0%    16.0MB ± 0%     ~     (all equal)
+
+name        old allocs/op  new allocs/op  delta
+/0-4            0.00           0.00          ~     (all equal)
+/1-4            1.00 ± 0%      1.00 ± 0%     ~     (all equal)
+/10-4           10.0 ± 0%      10.0 ± 0%     ~     (all equal)
+/100-4           100 ± 0%       100 ± 0%     ~     (all equal)
+/1000-4        1.00k ± 0%     1.00k ± 0%     ~     (all equal)
+/10000-4       10.0k ± 0%     10.0k ± 0%     ~     (all equal)
+/100000-4       100k ± 0%      100k ± 0%     ~     (all equal)
+/1000000-4     1.00M ± 0%     1.00M ± 0%     ~     (all equal)
+```

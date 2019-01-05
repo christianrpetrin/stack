@@ -23,7 +23,7 @@ package stack_test
 import (
 	"testing"
 
-	"github.com/ef-ds/stack"
+	"github.com/christianrpetrin/stack"
 )
 
 const (

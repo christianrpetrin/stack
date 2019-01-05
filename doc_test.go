@@ -3,7 +3,7 @@ package stack_test
 import (
 	"fmt"
 
-	"github.com/ef-ds/stack"
+	"github.com/christianrpetrin/stack"
 )
 
 func Example() {

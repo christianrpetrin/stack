@@ -1,3 +1,3 @@
-module github.com/ef-ds/stack
+module github.com/christianrpetrin/stack
 
 go 1.11
